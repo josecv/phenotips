@@ -63,5 +63,6 @@
     <module>record-locking</module>
     <module>xwiki-translation-manager</module>
     <module>xwiki-platform-svg</module>
+    <module>clinical-text-analysis-extension</module>
   </modules>
 </project>
