@@ -20,6 +20,7 @@ package org.phenotips.vocabulary.internal.solr;
 import org.phenotips.obo2solr.ParameterPreparer;
 import org.phenotips.obo2solr.SolrUpdateGenerator;
 import org.phenotips.obo2solr.TermData;
+import org.phenotips.vocabulary.VocabularyExtension;
 import org.phenotips.vocabulary.VocabularyTerm;
 
 import java.io.IOException;
@@ -29,6 +30,8 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+
+import javax.inject.Inject;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.solr.client.solrj.SolrQuery;
@@ -53,6 +56,13 @@ public abstract class AbstractOBOSolrVocabulary extends AbstractSolrVocabulary
     protected static final String ALTERNATIVE_ID_FIELD_NAME = "alt_id";
 
     protected static final String VERSION_FIELD_NAME = "version";
+
+    /**
+     * The vocabulary extension to use.
+     * TODO super temporary horror coupling.
+     */
+    @Inject
+    private VocabularyExtension ext;
 
     /**
      * The number of documents to be added and committed to Solr at a time.
@@ -101,6 +111,10 @@ public abstract class AbstractOBOSolrVocabulary extends AbstractSolrVocabulary
             return 2;
         }
         try {
+            String ontologyName = getIdentifier();
+            if (ext.getSupportedVocabularies().contains(ontologyName)) {
+                ext.indexingStarted(ontologyName);
+            }
             Collection<SolrInputDocument> termBatch = new HashSet<>();
             Iterator<Map.Entry<String, TermData>> dataIterator = data.entrySet().iterator();
             int batchCounter = 0;
@@ -119,10 +133,16 @@ public abstract class AbstractOBOSolrVocabulary extends AbstractSolrVocabulary
                         doc.addField(name, value, ParameterPreparer.DEFAULT_BOOST.floatValue());
                     }
                 }
+                if (ext.getSupportedVocabularies().contains(ontologyName)) {
+                    ext.extendTerm(new SolrVocabularyInputTerm(doc, this), ontologyName);
+                }
                 termBatch.add(doc);
                 batchCounter++;
             }
             commitTerms(termBatch);
+            if (ext.getSupportedVocabularies().contains(ontologyName)) {
+                ext.indexingEnded(ontologyName);
+            }
             return 0;
         } catch (SolrServerException ex) {
             this.logger.warn("Failed to index ontology: {}", ex.getMessage());
