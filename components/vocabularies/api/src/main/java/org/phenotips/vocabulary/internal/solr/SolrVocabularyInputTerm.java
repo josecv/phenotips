@@ -35,19 +35,9 @@ import org.apache.solr.common.SolrInputField;
 public class SolrVocabularyInputTerm extends SolrVocabularyTerm implements VocabularyInputTerm
 {
     /**
-     * The format to append the language to a vocabulary key.
-     */
-    private static final String LANG_FORMAT = "%s_%s";
-
-    /**
      * The solr input document.
      */
     private SolrInputDocument doc;
-
-    /**
-     * The language this term should have - will be appended to every key.
-     */
-    private String language;
 
     /**
      * Constructor.
@@ -57,21 +47,8 @@ public class SolrVocabularyInputTerm extends SolrVocabularyTerm implements Vocab
      */
     public SolrVocabularyInputTerm(SolrInputDocument doc, Vocabulary ontology)
     {
-        this(doc, ontology, "en");
-    }
-
-    /**
-     * Constructor.
-     *
-     * @param doc the solr document representing the term
-     * @param ontology the owner ontology
-     * @param language the language
-     */
-    public SolrVocabularyInputTerm(SolrInputDocument doc, Vocabulary ontology, String language)
-    {
         super(doc, ontology);
         this.doc = doc;
-        this.language = language;
     }
 
     @Override
@@ -87,7 +64,7 @@ public class SolrVocabularyInputTerm extends SolrVocabularyTerm implements Vocab
     public VocabularyInputTerm setName(String name)
     {
         if (doc != null) {
-            doc.setField(String.format(LANG_FORMAT, NAME, language), name);
+            doc.setField(NAME, name);
         }
         return this;
     }
@@ -96,7 +73,7 @@ public class SolrVocabularyInputTerm extends SolrVocabularyTerm implements Vocab
     public VocabularyInputTerm setDescription(String description)
     {
         if (doc != null) {
-            doc.setField(String.format(LANG_FORMAT, DEF, language), description);
+            doc.setField(DEF, description);
         }
         return this;
     }

@@ -160,7 +160,7 @@ public abstract class AbstractOBOSolrVocabulary extends AbstractSolrVocabulary
                     }
                 }
                 for (VocabularyExtension ext : extensions) {
-                    ext.extendTerm(new SolrVocabularyInputTerm(doc, this, "es"), ontologyName);
+                    ext.extendTerm(new SolrVocabularyInputTerm(doc, this), ontologyName);
                 }
                 termBatch.add(doc);
                 batchCounter++;

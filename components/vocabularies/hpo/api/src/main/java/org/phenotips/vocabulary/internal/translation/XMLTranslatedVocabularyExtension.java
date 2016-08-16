@@ -21,6 +21,9 @@ import org.phenotips.vocabulary.VocabularyExtension;
 import org.phenotips.vocabulary.VocabularyInputTerm;
 
 import org.xwiki.component.annotation.Component;
+import org.xwiki.component.phase.Initializable;
+import org.xwiki.component.phase.InitializationException;
+import org.xwiki.localization.LocalizationContext;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -32,8 +35,11 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import javax.inject.Inject;
 import javax.inject.Named;
 import javax.inject.Singleton;
+
+import org.slf4j.Logger;
 
 import org.xml.sax.Attributes;
 import org.xml.sax.InputSource;
@@ -53,14 +59,34 @@ import org.xml.sax.helpers.XMLReaderFactory;
 public class XMLTranslatedVocabularyExtension implements VocabularyExtension
 {
     /**
-     * The name of the xml file containing the translation.
+     * The format for the file containing the translation - where the first string is the ontology
+     * name and the second is the language code.
      */
-    private static final String TRANSLATION_XML = "hpo_es.xliff";
+    private static final String TRANSLATION_XML_FORMAT = "%s_%s.xliff";
 
     /**
      * The initial size of the map containing translations.
      */
     private static int INITIAL_MAP_SIZE = 16348;
+
+    /* TODO: I don't like having these field names down here, I'd rather they were
+     * somehow set by the vocabulary input term, but that'd require coupling the VocabularyInputTerm
+     * to the concept of a language which makes me uncomfortable too */
+
+    /**
+     * The format for the name field.
+     */
+    private static final String NAME_FORMAT = "name_%s";
+
+    /**
+     * The format for the definition field.
+     */
+    private static final String DEF_FORMAT = "def_%s";
+
+    /**
+     * The format for the synonym field.
+     */
+    private static final String SYNONYM_FORMAT = "synonym_%s";
 
     /**
      * The xml reader.
@@ -68,10 +94,27 @@ public class XMLTranslatedVocabularyExtension implements VocabularyExtension
     private XMLReader reader;
 
     /**
-     * The entity handler.
+     * The entity handler to process the xml file element by element.
      */
     private EntityHandler handler;
 
+    /**
+     * The current language. Will be set when we start indexing so that
+     * the component supports dynamically switching without restarting phenotips.
+     */
+    private String lang;
+
+    /**
+     * The logger.
+     */
+    @Inject
+    private Logger logger;
+
+    /**
+     * The localization context.
+     */
+    @Inject
+    private LocalizationContext localizationContext;
 
     @Override
     public Collection<String> getSupportedVocabularies()
@@ -89,13 +132,17 @@ public class XMLTranslatedVocabularyExtension implements VocabularyExtension
             handler = new EntityHandler();
             reader.setContentHandler(handler);
             reader.setErrorHandler(handler);
-            InputStream inStream = this.getClass().getResourceAsStream(TRANSLATION_XML);
+            lang = localizationContext.getCurrentLocale().getLanguage();
+            String xml = String.format(TRANSLATION_XML_FORMAT, vocabulary, lang);
+            InputStream inStream = this.getClass().getResourceAsStream(xml);
             if (inStream == null) {
                 /* parse will strangely throw a malformed url exception if this is null, which
                  * is impossible to distinguish from an actual malformed url exception,
-                 * so check here */
-                throw new NullPointerException("resource is null");
+                 * so check here and prevent going forward if there's no translation */
+                logger.warn("Could not find resource %s", xml);
+                return;
             }
+            logger.debug("Will parse %s", xml);
             reader.parse(new InputSource(inStream));
         } catch (SAXException | IOException e) {
             throw new RuntimeException("indexingStarted exception", e);
@@ -119,10 +166,10 @@ public class XMLTranslatedVocabularyExtension implements VocabularyExtension
         String label = translated.get("label");
         String definition = translated.get("definition");
         if (label != null) {
-            term.setName(label);
+            term.set(String.format(NAME_FORMAT, lang), label);
         }
         if (definition != null) {
-            term.setName(definition);
+            term.set(String.format(DEF_FORMAT, lang), definition);
         }
         /* TODO Else clauses that dynamically machine-translate the missing stuff (or get it from
          * a cache so we don't spend our lives translating).
