@@ -139,10 +139,10 @@ public class XMLTranslatedVocabularyExtension implements VocabularyExtension
                 /* parse will strangely throw a malformed url exception if this is null, which
                  * is impossible to distinguish from an actual malformed url exception,
                  * so check here and prevent going forward if there's no translation */
-                logger.warn("Could not find resource %s", xml);
+                logger.warn(String.format("Could not find resource %s", xml));
                 return;
             }
-            logger.debug("Will parse %s", xml);
+            logger.debug(String.format("Will parse %s", xml));
             reader.parse(new InputSource(inStream));
         } catch (SAXException | IOException e) {
             throw new RuntimeException("indexingStarted exception", e);

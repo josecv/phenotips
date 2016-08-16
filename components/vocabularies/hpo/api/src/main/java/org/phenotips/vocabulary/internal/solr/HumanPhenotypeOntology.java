@@ -20,9 +20,11 @@ package org.phenotips.vocabulary.internal.solr;
 import org.phenotips.vocabulary.VocabularyTerm;
 
 import org.xwiki.component.annotation.Component;
+import org.xwiki.localization.LocalizationContext;
 
 import java.text.MessageFormat;
 import java.util.Collections;
+import java.util.Formatter;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -31,6 +33,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
 
+import javax.inject.Inject;
 import javax.inject.Named;
 import javax.inject.Singleton;
 
@@ -56,6 +59,12 @@ public class HumanPhenotypeOntology extends AbstractOBOSolrVocabulary
 {
     /** For determining if a query is a an id. */
     private static final Pattern ID_PATTERN = Pattern.compile("^HP:[0-9]+$", Pattern.CASE_INSENSITIVE);
+
+    /**
+     * The localization context to determine the current locale.
+     */
+    @Inject
+    private LocalizationContext localizationContext;
 
     @Override
     protected String getCoreName()
@@ -131,12 +140,18 @@ public class HumanPhenotypeOntology extends AbstractOBOSolrVocabulary
 
     private Map<String, String> getStaticFieldSolrParams()
     {
+        String lang = localizationContext.getCurrentLocale().getLanguage();
         Map<String, String> params = new HashMap<>();
-        params.put(DisMaxParams.PF, "name^20 nameSpell^36 nameExact^100 namePrefix^30 "
-            + "synonym^15 synonymSpell^25 synonymExact^70 synonymPrefix^20 "
-            + "text^3 textSpell^5");
-        params.put(DisMaxParams.QF,
-            "name^10 nameSpell^18 nameStub^5 synonym^6 synonymSpell^10 synonymStub^3 text^1 textSpell^2 textStub^0.5");
+        Formatter f = new Formatter();
+        f.format("name_%1$s^20 nameSpell_%1$s^36 nameExact_%1$s^100 namePrefix_%1$s^30 ", lang);
+        f.format("synonym_%1$s^15 synonymSpell_%1$s^25 synonymExact_%1$s^70 ", lang);
+        f.format("synonymPrefix_%1$s^20 text_%1$s^3 textSpell_%1$s^5", lang);
+        params.put(DisMaxParams.PF, f.toString());
+        f = new Formatter();
+        f.format("name_%1$s^10 nameSpell_%1$s^18 nameStub_%1$s^5 synonym_%1$s^6 ", lang);
+        f.format("synonymSpell_%1$s^10 synonymStub_%1$s^3 text_%1$s^1 textSpell_%1$s^2 ", lang);
+        f.format("textStub_%1$s^0.5", lang);
+        params.put(DisMaxParams.QF, f.toString());
         return params;
     }
 
