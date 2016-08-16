@@ -23,7 +23,10 @@ import org.phenotips.obo2solr.TermData;
 import org.phenotips.vocabulary.VocabularyExtension;
 import org.phenotips.vocabulary.VocabularyTerm;
 
+import org.xwiki.component.phase.InitializationException;
+
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -58,11 +61,10 @@ public abstract class AbstractOBOSolrVocabulary extends AbstractSolrVocabulary
     protected static final String VERSION_FIELD_NAME = "version";
 
     /**
-     * The vocabulary extension to use.
-     * TODO super temporary horror coupling.
+     * Enabled vocabulary extensions.
      */
     @Inject
-    private VocabularyExtension ext;
+    private List<VocabularyExtension> extensions;
 
     /**
      * The number of documents to be added and committed to Solr at a time.
@@ -70,6 +72,13 @@ public abstract class AbstractOBOSolrVocabulary extends AbstractSolrVocabulary
      * @return a positive integer, or a negative number to disable batching and pushing all terms in one go
      */
     protected abstract int getSolrDocsPerBatch();
+
+    @Override
+    public void initialize() throws InitializationException
+    {
+        super.initialize();
+        extensions = getSupportedExtensions();
+    }
 
     @Override
     public VocabularyTerm getTerm(String id)
@@ -94,6 +103,23 @@ public abstract class AbstractOBOSolrVocabulary extends AbstractSolrVocabulary
     }
 
     /**
+     * Get the list of extensions that this vocabulary supports.
+     *
+     * @return the list of supported extensions
+     */
+    private List<VocabularyExtension> getSupportedExtensions()
+    {
+        List<VocabularyExtension> retval = new ArrayList<>(extensions.size());
+        String name = getIdentifier();
+        for (VocabularyExtension ext : extensions) {
+            if (ext.getSupportedVocabularies().contains(name)) {
+                retval.add(ext);
+            }
+        }
+        return retval;
+    }
+
+    /**
      * Add a vocabulary to the index.
      *
      * @param sourceUrl the address from where to get the vocabulary source file
@@ -112,7 +138,7 @@ public abstract class AbstractOBOSolrVocabulary extends AbstractSolrVocabulary
         }
         try {
             String ontologyName = getIdentifier();
-            if (ext.getSupportedVocabularies().contains(ontologyName)) {
+            for (VocabularyExtension ext : extensions) {
                 ext.indexingStarted(ontologyName);
             }
             Collection<SolrInputDocument> termBatch = new HashSet<>();
@@ -133,14 +159,14 @@ public abstract class AbstractOBOSolrVocabulary extends AbstractSolrVocabulary
                         doc.addField(name, value, ParameterPreparer.DEFAULT_BOOST.floatValue());
                     }
                 }
-                if (ext.getSupportedVocabularies().contains(ontologyName)) {
+                for (VocabularyExtension ext : extensions) {
                     ext.extendTerm(new SolrVocabularyInputTerm(doc, this, "es"), ontologyName);
                 }
                 termBatch.add(doc);
                 batchCounter++;
             }
             commitTerms(termBatch);
-            if (ext.getSupportedVocabularies().contains(ontologyName)) {
+            for (VocabularyExtension ext : extensions) {
                 ext.indexingEnded(ontologyName);
             }
             return 0;
