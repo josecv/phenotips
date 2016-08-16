@@ -29,6 +29,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
@@ -140,17 +141,28 @@ public class HumanPhenotypeOntology extends AbstractOBOSolrVocabulary
 
     private Map<String, String> getStaticFieldSolrParams()
     {
-        String lang = localizationContext.getCurrentLocale().getLanguage();
+        /* We need to make sure everything degrades gracefully, so if no locale or
+         * language is set to english anyway, just use the old fields */
+        String lang = "";
+        Locale currentLocale = localizationContext.getCurrentLocale();
+        if (currentLocale != null) {
+            lang = localizationContext.getCurrentLocale().getLanguage();
+            if ("en".equals(lang) || lang == null) {
+                lang = "";
+            } else {
+                lang = "_" + lang;
+            }
+        }
         Map<String, String> params = new HashMap<>();
         Formatter f = new Formatter();
-        f.format("name_%1$s^20 nameSpell_%1$s^36 nameExact_%1$s^100 namePrefix_%1$s^30 ", lang);
-        f.format("synonym_%1$s^15 synonymSpell_%1$s^25 synonymExact_%1$s^70 ", lang);
-        f.format("synonymPrefix_%1$s^20 text_%1$s^3 textSpell_%1$s^5", lang);
+        f.format("name%1$s^20 nameSpell%1$s^36 nameExact%1$s^100 namePrefix%1$s^30 ", lang);
+        f.format("synonym%1$s^15 synonymSpell%1$s^25 synonymExact%1$s^70 ", lang);
+        f.format("synonymPrefix%1$s^20 text%1$s^3 textSpell%1$s^5", lang);
         params.put(DisMaxParams.PF, f.toString());
         f = new Formatter();
-        f.format("name_%1$s^10 nameSpell_%1$s^18 nameStub_%1$s^5 synonym_%1$s^6 ", lang);
-        f.format("synonymSpell_%1$s^10 synonymStub_%1$s^3 text_%1$s^1 textSpell_%1$s^2 ", lang);
-        f.format("textStub_%1$s^0.5", lang);
+        f.format("name%1$s^10 nameSpell%1$s^18 nameStub%1$s^5 synonym%1$s^6 ", lang);
+        f.format("synonymSpell%1$s^10 synonymStub%1$s^3 text%1$s^1 textSpell%1$s^2 ", lang);
+        f.format("textStub%1$s^0.5", lang);
         params.put(DisMaxParams.QF, f.toString());
         return params;
     }

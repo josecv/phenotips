@@ -21,14 +21,13 @@ import org.phenotips.vocabulary.Vocabulary;
 import org.phenotips.vocabulary.VocabularyInputTerm;
 import org.phenotips.vocabulary.VocabularyTerm;
 
-import java.util.Map;
 import java.util.Set;
 
 import org.apache.solr.common.SolrInputDocument;
 import org.apache.solr.common.SolrInputField;
 
 /**
- * Implementation for {@link VocabularyInputTerm} based on a Solr document
+ * Implementation for {@link VocabularyInputTerm} based on a Solr document.
  *
  * @version $Id$
  */

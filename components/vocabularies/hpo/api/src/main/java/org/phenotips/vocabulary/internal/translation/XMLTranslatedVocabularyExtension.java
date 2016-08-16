@@ -21,8 +21,6 @@ import org.phenotips.vocabulary.VocabularyExtension;
 import org.phenotips.vocabulary.VocabularyInputTerm;
 
 import org.xwiki.component.annotation.Component;
-import org.xwiki.component.phase.Initializable;
-import org.xwiki.component.phase.InitializationException;
 import org.xwiki.localization.LocalizationContext;
 
 import java.io.IOException;
@@ -36,7 +34,6 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import javax.inject.Inject;
-import javax.inject.Named;
 import javax.inject.Singleton;
 
 import org.slf4j.Logger;
@@ -67,7 +64,7 @@ public class XMLTranslatedVocabularyExtension implements VocabularyExtension
     /**
      * The initial size of the map containing translations.
      */
-    private static int INITIAL_MAP_SIZE = 16348;
+    private static final int INITIAL_MAP_SIZE = 16348;
 
     /* TODO: I don't like having these field names down here, I'd rather they were
      * somehow set by the vocabulary input term, but that'd require coupling the VocabularyInputTerm
@@ -240,7 +237,7 @@ public class XMLTranslatedVocabularyExtension implements VocabularyExtension
         }
 
         @Override
-        public void characters(char ch[], int start, int length)
+        public void characters(char[] ch, int start, int length)
         {
             if (inTarget) {
                 Map<String, String> map = translations.get(currentTerm);
@@ -248,7 +245,9 @@ public class XMLTranslatedVocabularyExtension implements VocabularyExtension
                     map = new HashMap<>(4);
                     translations.put(currentTerm, map);
                 }
-                map.put(currentAttr, new String(ch, start, length));
+                StringBuilder b = new StringBuilder();
+                b.append(ch, start, length);
+                map.put(currentAttr, b.toString());
             }
         }
 

@@ -21,6 +21,7 @@ import org.phenotips.obo2solr.ParameterPreparer;
 import org.phenotips.obo2solr.SolrUpdateGenerator;
 import org.phenotips.obo2solr.TermData;
 import org.phenotips.vocabulary.VocabularyExtension;
+import org.phenotips.vocabulary.VocabularyInputTerm;
 import org.phenotips.vocabulary.VocabularyTerm;
 
 import org.xwiki.component.phase.InitializationException;
@@ -99,7 +100,14 @@ public abstract class AbstractOBOSolrVocabulary extends AbstractSolrVocabulary
     public int reindex(String sourceUrl)
     {
         this.clear();
-        return this.index(sourceUrl);
+        for (VocabularyExtension ext : extensions) {
+            ext.indexingStarted(getIdentifier());
+        }
+        int retval = this.index(sourceUrl);
+        for (VocabularyExtension ext : extensions) {
+            ext.indexingEnded(getIdentifier());
+        }
+        return retval;
     }
 
     /**
@@ -137,10 +145,6 @@ public abstract class AbstractOBOSolrVocabulary extends AbstractSolrVocabulary
             return 2;
         }
         try {
-            String ontologyName = getIdentifier();
-            for (VocabularyExtension ext : extensions) {
-                ext.indexingStarted(ontologyName);
-            }
             Collection<SolrInputDocument> termBatch = new HashSet<>();
             Iterator<Map.Entry<String, TermData>> dataIterator = data.entrySet().iterator();
             int batchCounter = 0;
@@ -159,16 +163,11 @@ public abstract class AbstractOBOSolrVocabulary extends AbstractSolrVocabulary
                         doc.addField(name, value, ParameterPreparer.DEFAULT_BOOST.floatValue());
                     }
                 }
-                for (VocabularyExtension ext : extensions) {
-                    ext.extendTerm(new SolrVocabularyInputTerm(doc, this), ontologyName);
-                }
+                extendTerm(new SolrVocabularyInputTerm(doc, this));
                 termBatch.add(doc);
                 batchCounter++;
             }
             commitTerms(termBatch);
-            for (VocabularyExtension ext : extensions) {
-                ext.indexingEnded(ontologyName);
-            }
             return 0;
         } catch (SolrServerException ex) {
             this.logger.warn("Failed to index ontology: {}", ex.getMessage());
@@ -178,6 +177,18 @@ public abstract class AbstractOBOSolrVocabulary extends AbstractSolrVocabulary
             this.logger.warn("Failed to add terms to the Solr. Ran out of memory. {}", ex.getMessage());
         }
         return 1;
+    }
+
+    /**
+     * Run the term given through all the vocabulary extensions we have.
+     *
+     * @param term the term
+     */
+    protected void extendTerm(VocabularyInputTerm term)
+    {
+        for (VocabularyExtension ext : extensions) {
+            ext.extendTerm(term, getIdentifier());
+        }
     }
 
     protected void commitTerms(Collection<SolrInputDocument> batch)
