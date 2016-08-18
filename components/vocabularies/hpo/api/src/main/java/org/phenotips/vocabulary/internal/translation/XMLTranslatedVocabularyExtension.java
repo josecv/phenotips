@@ -28,22 +28,13 @@ import java.io.InputStream;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
 import org.slf4j.Logger;
 
-import org.xml.sax.Attributes;
-import org.xml.sax.InputSource;
-import org.xml.sax.SAXException;
-import org.xml.sax.XMLReader;
-import org.xml.sax.helpers.DefaultHandler;
-import org.xml.sax.helpers.XMLReaderFactory;
+import com.fasterxml.jackson.dataformat.xml.XmlMapper;
 
 /**
  * Implements {@link VocabularyExtension} to provide translation services.
@@ -60,11 +51,6 @@ public class XMLTranslatedVocabularyExtension implements VocabularyExtension
      * name and the second is the language code.
      */
     private static final String TRANSLATION_XML_FORMAT = "%s_%s.xliff";
-
-    /**
-     * The initial size of the map containing translations.
-     */
-    private static final int INITIAL_MAP_SIZE = 16348;
 
     /* TODO: I don't like having these field names down here, I'd rather they were
      * somehow set by the vocabulary input term, but that'd require coupling the VocabularyInputTerm
@@ -86,16 +72,6 @@ public class XMLTranslatedVocabularyExtension implements VocabularyExtension
     private static final String SYNONYM_FORMAT = "synonym_%s";
 
     /**
-     * The xml reader.
-     */
-    private XMLReader reader;
-
-    /**
-     * The entity handler to process the xml file element by element.
-     */
-    private EntityHandler handler;
-
-    /**
      * The current language. Will be set when we start indexing so that
      * the component supports dynamically switching without restarting phenotips.
      */
@@ -108,10 +84,20 @@ public class XMLTranslatedVocabularyExtension implements VocabularyExtension
     private Logger logger;
 
     /**
+     * The deserialized xliff.
+     */
+    private XLiffFile xliff;
+
+    /**
      * The localization context.
      */
     @Inject
     private LocalizationContext localizationContext;
+
+    /**
+     * An xml mapper.
+     */
+    private XmlMapper mapper = new XmlMapper();
 
     @Override
     public Collection<String> getSupportedVocabularies()
@@ -124,13 +110,9 @@ public class XMLTranslatedVocabularyExtension implements VocabularyExtension
     @Override
     public void indexingStarted(String vocabulary)
     {
+        lang = localizationContext.getCurrentLocale().getLanguage();
+        String xml = String.format(TRANSLATION_XML_FORMAT, vocabulary, lang);
         try {
-            reader = XMLReaderFactory.createXMLReader();
-            handler = new EntityHandler();
-            reader.setContentHandler(handler);
-            reader.setErrorHandler(handler);
-            lang = localizationContext.getCurrentLocale().getLanguage();
-            String xml = String.format(TRANSLATION_XML_FORMAT, vocabulary, lang);
             InputStream inStream = this.getClass().getResourceAsStream(xml);
             if (inStream == null) {
                 /* parse will strangely throw a malformed url exception if this is null, which
@@ -139,9 +121,9 @@ public class XMLTranslatedVocabularyExtension implements VocabularyExtension
                 logger.warn(String.format("Could not find resource %s", xml));
                 return;
             }
-            logger.debug(String.format("Will parse %s", xml));
-            reader.parse(new InputSource(inStream));
-        } catch (SAXException | IOException e) {
+            xliff = mapper.readValue(inStream, XLiffFile.class);
+            inStream.close();
+        } catch (IOException e) {
             throw new RuntimeException("indexingStarted exception", e);
         }
     }
@@ -149,19 +131,17 @@ public class XMLTranslatedVocabularyExtension implements VocabularyExtension
     @Override
     public void indexingEnded(String vocabulary)
     {
-
+        /* This thing holds a huge dictionary inside it, so we don't want java to have any qualms
+         * about garbage collecting it. */
+        xliff = null;
     }
 
     @Override
     public void extendTerm(VocabularyInputTerm term, String vocabulary)
     {
         String id = term.getId();
-        Map<String, String> translated = handler.translations.get(id);
-        if (translated == null) {
-            return;
-        }
-        String label = translated.get("label");
-        String definition = translated.get("definition");
+        String label = xliff.getString(id, "label");
+        String definition = xliff.getString(id, "definition");
         if (label != null) {
             term.set(String.format(NAME_FORMAT, lang), label);
         }
@@ -171,95 +151,5 @@ public class XMLTranslatedVocabularyExtension implements VocabularyExtension
         /* TODO Else clauses that dynamically machine-translate the missing stuff (or get it from
          * a cache so we don't spend our lives translating).
          */
-    }
-
-    /**
-     * The entity handler to read through the xml file.
-     *
-     * @version $Id$
-     */
-    private static class EntityHandler extends DefaultHandler
-    {
-        /**
-         * The pattern to parse ids of translation units.
-         */
-        private static final Pattern ID_PATTERN = Pattern.compile("(HP_\\d+)_(.*)");
-
-        /**
-         * The name of the target tag.
-         */
-        private static final String TARGET = "target";
-
-        /**
-         * The name of the id attribute.
-         */
-        private static final String ID = "id";
-
-        /**
-         * The name of the translation unit tag.
-         */
-        private static final String TRANSLATION_UNIT = "trans-unit";
-
-        /**
-         * The current hpo term id being looked at.
-         */
-        private String currentTerm;
-
-        /**
-         * The current attribute being looked at.
-         */
-        private String currentAttr;
-
-        /**
-         * Whether we are looking at the target tag of a translation unit.
-         */
-        private boolean inTarget;
-
-        /**
-         * A map of {HPO_ID : {attribute : translation}} to be used when extending
-         * terms.
-         */
-        private Map<String, Map<String, String>> translations = new HashMap<>(INITIAL_MAP_SIZE);
-
-        @Override
-        public void startElement(String uri, String name, String qName, Attributes attrs)
-        {
-            if (TRANSLATION_UNIT.equals(name)) {
-                Matcher m = ID_PATTERN.matcher(attrs.getValue(ID));
-                m.find();
-                if (m.matches()) {
-                    currentTerm = m.group(1).replace("_", ":");
-                    currentAttr = m.group(2);
-                }
-            } else if (TARGET.equals(name) && currentTerm != null) {
-                inTarget = true;
-            }
-        }
-
-        @Override
-        public void characters(char[] ch, int start, int length)
-        {
-            if (inTarget) {
-                Map<String, String> map = translations.get(currentTerm);
-                if (map == null) {
-                    map = new HashMap<>(4);
-                    translations.put(currentTerm, map);
-                }
-                StringBuilder b = new StringBuilder();
-                b.append(ch, start, length);
-                map.put(currentAttr, b.toString());
-            }
-        }
-
-        @Override
-        public void endElement(String uri, String name, String qName)
-        {
-            if (TRANSLATION_UNIT.equals(name)) {
-                currentTerm = null;
-                currentAttr = null;
-            } else if (TARGET.equals(name) && inTarget) {
-                inTarget = false;
-            }
-        }
     }
 }
