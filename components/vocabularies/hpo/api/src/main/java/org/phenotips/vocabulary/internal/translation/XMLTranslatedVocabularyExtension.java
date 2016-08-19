@@ -17,6 +17,7 @@
  */
 package org.phenotips.vocabulary.internal.translation;
 
+import org.phenotips.vocabulary.MachineTranslator;
 import org.phenotips.vocabulary.VocabularyExtension;
 import org.phenotips.vocabulary.VocabularyInputTerm;
 
@@ -84,6 +85,12 @@ public class XMLTranslatedVocabularyExtension implements VocabularyExtension
     private Logger logger;
 
     /**
+     * The machine translator.
+     */
+    @Inject
+    private MachineTranslator translator;
+
+    /**
      * The deserialized xliff.
      */
     private XLiffFile xliff;
@@ -111,6 +118,9 @@ public class XMLTranslatedVocabularyExtension implements VocabularyExtension
     public void indexingStarted(String vocabulary)
     {
         lang = localizationContext.getCurrentLocale().getLanguage();
+        if (shouldMachineTranslate(vocabulary)) {
+            translator.loadVocabulary(vocabulary);
+        }
         String xml = String.format(TRANSLATION_XML_FORMAT, vocabulary, lang);
         try {
             InputStream inStream = this.getClass().getResourceAsStream(xml);
@@ -134,6 +144,9 @@ public class XMLTranslatedVocabularyExtension implements VocabularyExtension
         /* This thing holds a huge dictionary inside it, so we don't want java to have any qualms
          * about garbage collecting it. */
         xliff = null;
+        if (shouldMachineTranslate(vocabulary)) {
+            translator.unloadVocabulary(vocabulary);
+        }
     }
 
     @Override
@@ -142,14 +155,32 @@ public class XMLTranslatedVocabularyExtension implements VocabularyExtension
         String id = term.getId();
         String label = xliff.getString(id, "label");
         String definition = xliff.getString(id, "definition");
+        Collection<String> fields = new ArrayList<>(2);
+        /* FIXME Bad bad bad hardcoded field names */
         if (label != null) {
             term.set(String.format(NAME_FORMAT, lang), label);
+        } else {
+            fields.add("name");
         }
         if (definition != null) {
             term.set(String.format(DEF_FORMAT, lang), definition);
+        } else {
+            fields.add("def");
         }
-        /* TODO Else clauses that dynamically machine-translate the missing stuff (or get it from
-         * a cache so we don't spend our lives translating).
-         */
+        if (shouldMachineTranslate(vocabulary)) {
+            translator.translate(vocabulary, term, fields);
+        }
+    }
+
+    /**
+     * Return whether we should run the vocabulary given through a machine tranlsator.
+     *
+     * @param vocabulary the vocabulary
+     * @return whether it should be machine translated.
+     */
+    private boolean shouldMachineTranslate(String vocabulary)
+    {
+        return translator.getSupportedLanguages().contains(lang)
+            && translator.getSupportedVocabularies().contains(vocabulary);
     }
 }
