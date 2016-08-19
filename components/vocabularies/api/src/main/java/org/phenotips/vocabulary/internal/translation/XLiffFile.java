@@ -90,17 +90,15 @@ final class XLiffFile
     @JsonIgnore
     public void setString(String id, String property, String source, String target)
     {
-        TransUnit unit;
+        TransUnit unit = null;
         Map<String, TransUnit> properties = file.body.transUnits.get(id);
-        if (properties == null) {
-            unit = new TransUnit();
-        } else {
+        if (properties != null) {
             unit = properties.get(property);
-            if (unit == null) {
-                unit = new TransUnit();
-                unit.id = String.format("%s_%s", id, property);
-                file.body.addTransUnit(unit);
-            }
+        }
+        if (unit == null) {
+            unit = new TransUnit();
+            unit.id = String.format("%s_%s", id, property);
+            file.body.addTransUnit(unit);
         }
         unit.source = source;
         unit.target = target;
@@ -148,6 +146,7 @@ final class XLiffFile
     {
         /**
          * The pattern to parse ids.
+         * TODO This should probably not be hardcoded...
          */
         @JsonIgnore
         private static final Pattern ID_PATTERN = Pattern.compile("^(.*)_(.*)$");
