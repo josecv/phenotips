@@ -38,6 +38,8 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.fail;
 
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
@@ -111,6 +113,8 @@ public class AbstractMachineTranslatorTest
         when(term1.getId()).thenReturn("DUM:0001");
         when(term1.getName()).thenReturn("Dummy");
         when(term1.get("name")).thenReturn("Dummy");
+        when(term1.get("def")).thenReturn("Definition");
+        when(term1.getDescription()).thenReturn("Definition");
 
         term2 = mock(VocabularyInputTerm.class);
         when(term2.getId()).thenReturn("DUM:0002");
@@ -141,6 +145,7 @@ public class AbstractMachineTranslatorTest
         assertEquals(0, count);
         verify(translator, never()).doTranslate(term1.getName());
         verify(term1).set("name_es", "El Dummy");
+        verify(term1, never()).set(eq("name"), any(String.class));
     }
 
     /**
@@ -153,6 +158,7 @@ public class AbstractMachineTranslatorTest
         assertEquals(term2.getName().length(), count);
         verify(translator).doTranslate(term2.getName());
         verify(term2).set("name_es", "El Whatever");
+        verify(term2, never()).set(eq("name"), any(String.class));
     }
 
     /**
@@ -166,6 +172,7 @@ public class AbstractMachineTranslatorTest
         assertEquals(0, count);
         verify(translator, times(1)).doTranslate(term2.getName());
         verify(term2, times(2)).set("name_es", "El Whatever");
+        verify(term2, never()).set(eq("name"), any(String.class));
     }
 
     /**
@@ -185,6 +192,20 @@ public class AbstractMachineTranslatorTest
     }
 
     /**
+     * Test that we can cope with new fields.
+     */
+    @Test
+    public void testNewField()
+    {
+        fields.add("def");
+        long count = translator.translate(VOC_NAME, term1, fields);
+        assertEquals(term1.getDescription().length(), count);
+        verify(term1).set("def_es", "El " + term1.getDescription());
+        verify(term1, never()).set(eq("def"), any(String.class));
+        verify(translator).doTranslate(term1.getDescription());
+    }
+
+    /**
      * Test that previously performed translations are remembered accross
      * restarts of the component.
      */
@@ -198,6 +219,27 @@ public class AbstractMachineTranslatorTest
         assertEquals(0, count);
         verify(translator, times(1)).doTranslate(term2.getName());
         verify(term2, times(2)).set("name_es", "El Whatever");
+        verify(term2, never()).set(eq("name"), any(String.class));
+    }
+
+    /**
+     * Test that a newly added field (to an already existing term)
+     * will have its translation persisted.
+     */
+    @Test
+    public void testNewFieldPersisted()
+    {
+        fields.add("def");
+        translator.translate(VOC_NAME, term1, fields);
+        translator.unloadVocabulary(VOC_NAME);
+        translator.loadVocabulary(VOC_NAME);
+        long count = translator.translate(VOC_NAME, term1, fields);
+        assertEquals(0, count);
+        /* One time for each translation */
+        verify(term1, times(2)).set("def_es", "El Definition");
+        /* Only once: for the first translation */
+        verify(translator, times(1)).doTranslate(term1.getDescription());
+        verify(term1, never()).set(eq("def"), any(String.class));
     }
 
     /**
