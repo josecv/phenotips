@@ -29,6 +29,8 @@ import java.io.InputStream;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -58,19 +60,25 @@ public class XMLTranslatedVocabularyExtension implements VocabularyExtension
      * to the concept of a language which makes me uncomfortable too */
 
     /**
-     * The format for the name field.
+     * The name field.
      */
-    private static final String NAME_FORMAT = "name_%s";
+    private static final String NAME = "name";
 
     /**
-     * The format for the definition field.
+     * The definition field.
      */
-    private static final String DEF_FORMAT = "def_%s";
+    private static final String DEF = "def";
 
     /**
-     * The format for the synonym field.
+     * The format to add a language to a solr field.
      */
-    private static final String SYNONYM_FORMAT = "synonym_%s";
+    private static final String FIELD_FORMAT = "%s_%s";
+
+    /**
+     * A map going from the names of properties in the solr index to the names of properties
+     * in the xliff file.
+     */
+    private static final Map<String, String> PROP_MAP;
 
     /**
      * The current language. Will be set when we start indexing so that
@@ -105,6 +113,12 @@ public class XMLTranslatedVocabularyExtension implements VocabularyExtension
      * An xml mapper.
      */
     private XmlMapper mapper = new XmlMapper();
+
+    static {
+        PROP_MAP = new HashMap<>(2);
+        PROP_MAP.put(NAME, "label");
+        PROP_MAP.put(DEF, "definition");
+    }
 
     @Override
     public Collection<String> getSupportedVocabularies()
@@ -153,19 +167,21 @@ public class XMLTranslatedVocabularyExtension implements VocabularyExtension
     public void extendTerm(VocabularyInputTerm term, String vocabulary)
     {
         String id = term.getId();
-        String label = xliff.getString(id, "label");
-        String definition = xliff.getString(id, "definition");
+        String label = xliff.getString(id, PROP_MAP.get(NAME));
+        String definition = xliff.getString(id, PROP_MAP.get(DEF));
         Collection<String> fields = new ArrayList<>(2);
-        /* FIXME Bad bad bad hardcoded field names */
         if (label != null) {
-            term.set(String.format(NAME_FORMAT, lang), label);
+            term.set(String.format(FIELD_FORMAT, NAME, lang), label);
         } else {
-            fields.add("name");
+            /* This is not meant to be the PROP_MAP.get(NAME) because it's the field that
+             * the machine translator (not the official HPO xliff sheet) knows this field by,
+             * which has no reason not to be the same field that we use. */
+            fields.add(NAME);
         }
         if (definition != null) {
-            term.set(String.format(DEF_FORMAT, lang), definition);
+            term.set(String.format(FIELD_FORMAT, DEF, lang), definition);
         } else {
-            fields.add("def");
+            fields.add(DEF);
         }
         if (shouldMachineTranslate(vocabulary)) {
             translator.translate(vocabulary, term, fields);
