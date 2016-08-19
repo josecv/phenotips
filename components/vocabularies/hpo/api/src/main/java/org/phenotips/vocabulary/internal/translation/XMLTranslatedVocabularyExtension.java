@@ -167,8 +167,8 @@ public class XMLTranslatedVocabularyExtension implements VocabularyExtension
     public void extendTerm(VocabularyInputTerm term, String vocabulary)
     {
         String id = term.getId();
-        String label = xliff.getString(id, PROP_MAP.get(NAME));
-        String definition = xliff.getString(id, PROP_MAP.get(DEF));
+        String label = xliff.getFirstString(id, PROP_MAP.get(NAME));
+        String definition = xliff.getFirstString(id, PROP_MAP.get(DEF));
         Collection<String> fields = new ArrayList<>(2);
         if (label != null) {
             term.set(String.format(FIELD_FORMAT, NAME, lang), label);

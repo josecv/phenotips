@@ -33,6 +33,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import javax.inject.Inject;
@@ -186,7 +187,7 @@ public abstract class AbstractMachineTranslator implements MachineTranslator, In
         long count = 0;
         XLiffFile xliff = getXliff(vocabulary);
         for (String field : fields) {
-            if (xliff.getString(term.getId(), field) == null) {
+            if (xliff.getFirstString(term.getId(), field) == null) {
                 Object o = term.get(field);
                 if (o instanceof String) {
                     count += ((String) o).length();
@@ -210,21 +211,36 @@ public abstract class AbstractMachineTranslator implements MachineTranslator, In
         XLiffFile xliff = getXliff(vocabulary);
         for (String field : fields) {
             String translatedField = field + "_" + lang;
-            String there = xliff.getString(term.getId(), field);
-            if (there != null) {
-                term.set(translatedField, there);
-            } else {
-                Object o = term.get(field);
-                if (o instanceof String) {
+            Object o = term.get(field);
+            if (o instanceof String) {
+                String there = xliff.getFirstString(term.getId(), field);
+                if (there != null) {
+                    term.set(translatedField, there);
+                } else {
                     String string = (String) o;
                     count += string.length();
                     String result = doTranslate(string);
                     term.set(translatedField, result);
                     xliff.setString(term.getId(), field, string, result);
-                } else if (o instanceof Iterable) {
-                    /* Temporary while we implement this, since having a bad implementation is
-                     * gonna do more harm than good. */
-                    throw new UnsupportedOperationException("Cannot translate multivalued fields yet");
+                }
+            } else if (o instanceof Iterable) {
+                Iterable<Object> objects = (Iterable) o;
+                List<String> there = xliff.getStrings(term.getId(), field);
+                if (there != null) {
+                    term.set(translatedField, there);
+                } else {
+                    for (Object inner : objects) {
+                        if (inner instanceof String) {
+                            String string = (String) inner;
+                            count += string.length();
+                            String result = doTranslate(string);
+                            term.append(translatedField, result);
+                            xliff.appendString(term.getId(), field, string, result);
+                        } else {
+                            /* Not a string, append it as it is */
+                            term.append(translatedField, inner);
+                        }
+                    }
                 }
             }
         }

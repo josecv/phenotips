@@ -27,6 +27,7 @@ import org.xwiki.test.mockito.MockitoComponentMockingRule;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Locale;
+import java.util.Set;
 
 import org.junit.After;
 import org.junit.Before;
@@ -38,7 +39,10 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.fail;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
+
 import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.argThat;
 import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -95,6 +99,21 @@ public class AbstractMachineTranslatorTest
     private Collection<String> fields = new HashSet<>();
 
     /**
+     * A set of synonyms.
+     */
+    private Set<String> synonyms = new HashSet<>();
+
+    /**
+     * The set of "translated" synonyms.
+     */
+    private Set<String> translatedSynonyms = new HashSet<>();
+
+    /**
+     * The added up length of the synonyms.
+     */
+    private int synonymsLength = 0;
+
+    /**
      * Set up the test.
      */
     @Before
@@ -109,12 +128,23 @@ public class AbstractMachineTranslatorTest
          * persisted */
         when(environment.getPermanentDirectory()).thenReturn(folder.getRoot());
 
+        synonyms.clear();
+        translatedSynonyms.clear();
+        synonyms.add("Newcastle United");
+        synonyms.add("West Ham");
+        synonyms.add("Blackburn Rovers");
+        for (String synonym : synonyms) {
+            synonymsLength += synonym.length();
+            translatedSynonyms.add("El " + synonym);
+        }
+
         term1 = mock(VocabularyInputTerm.class);
         when(term1.getId()).thenReturn("DUM:0001");
         when(term1.getName()).thenReturn("Dummy");
         when(term1.get("name")).thenReturn("Dummy");
         when(term1.get("def")).thenReturn("Definition");
         when(term1.getDescription()).thenReturn("Definition");
+        when(term1.get("synonym")).thenReturn(synonyms);
 
         term2 = mock(VocabularyInputTerm.class);
         when(term2.getId()).thenReturn("DUM:0002");
@@ -242,8 +272,75 @@ public class AbstractMachineTranslatorTest
         verify(term1, never()).set(eq("def"), any(String.class));
     }
 
+    /* FIXME These are very tightly coupled to the current implementation's practice of using append()
+     * when dynamically translating and set() when just reading. That's not good. */
+
+    /**
+     * Test that multivalued terms can be read from the translation.
+     */
+    @Test
+    public void testReadMultiValued()
+    {
+        fields.clear();
+        fields.add("synonym");
+        long count = translator.translate(VOC_NAME, term1, fields);
+        assertEquals(0, count);
+        verify(term1).set(eq("synonym_es"), argThat(containsInAnyOrder(translatedSynonyms.toArray())));
+        verify(term1, never()).set(eq("synonym"), any(Set.class));
+        verify(translator, never()).doTranslate(any(String.class));
+    }
+
+    /**
+     * Test that multivalued terms can be translated at all.
+     */
+    @Test
+    public void testTranslateMultiValued()
+    {
+        fields.clear();
+        fields.add("synonym");
+        when(term2.get("synonym")).thenReturn(synonyms);
+        long count = translator.translate(VOC_NAME, term2, fields);
+        assertEquals(synonymsLength, count);
+        verify(term2, never()).set(eq("synonym"), any(Set.class));
+        verify(translator, times(synonyms.size())).doTranslate(any(String.class));
+        for (String synonym : synonyms) {
+            verify(translator).doTranslate(eq(synonym));
+        }
+        for (String synonym : translatedSynonyms) {
+            verify(term2).append(eq("synonym_es"), eq(synonym));
+        }
+    }
+
+    /**
+     * Test that multivalued fields get properly persisted.
+     */
+    @Test
+    public void testPersistMultiValued()
+    {
+        fields.clear();
+        fields.add("synonym");
+        when(term2.get("synonym")).thenReturn(synonyms);
+        translator.translate(VOC_NAME, term2, fields);
+        translator.unloadVocabulary(VOC_NAME);
+        translator.loadVocabulary(VOC_NAME);
+        long count = translator.translate(VOC_NAME, term2, fields);
+        assertEquals(0, count);
+        verify(term2, never()).set(eq("synonym"), any(String.class));
+        verify(translator, times(synonyms.size())).doTranslate(any(String.class));
+        for (String synonym : synonyms) {
+            verify(translator, times(1)).doTranslate(eq(synonym));
+        }
+        for (String synonym : translatedSynonyms) {
+            verify(term2).append(eq("synonym_es"), eq(synonym));
+        }
+        verify(term2).set(eq("synonym_es"),
+                argThat(containsInAnyOrder(translatedSynonyms.toArray())));
+    }
+
     /**
      * Provides a dummy implementation of machine translator methods.
+     * Translates terms into Spanish following the cartoonish principle of prepending
+     * the definite article "El " to the word.
      *
      * @version $Id$
      */

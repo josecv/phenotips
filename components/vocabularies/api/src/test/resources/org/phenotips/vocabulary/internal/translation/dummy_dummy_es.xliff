@@ -6,6 +6,10 @@
         <source>Dummy</source>
         <target>El Dummy</target>
       </trans-unit>
+      <trans-unit id="DUM_0001_synonym">
+        <source>#Newcastle United #West Ham #Blackburn Rovers</source>
+        <target>#El Newcastle United #El West Ham #El Blackburn Rovers</target>
+      </trans-unit>
     </body>
   </file>
 </xliff>
