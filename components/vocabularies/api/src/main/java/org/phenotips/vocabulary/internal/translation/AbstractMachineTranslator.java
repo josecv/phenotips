@@ -222,16 +222,9 @@ public abstract class AbstractMachineTranslator implements MachineTranslator, In
                     term.set(translatedField, result);
                     xliff.setString(term.getId(), field, string, result);
                 } else if (o instanceof Iterable) {
-                    Iterable<Object> objects = (Iterable) o;
-                    for (Object inner : objects) {
-                        if (inner instanceof String) {
-                            String string = (String) inner;
-                            count += string.length();
-                            term.append(translatedField, doTranslate(string));
-                        } else {
-                            term.append(translatedField, inner);
-                        }
-                    }
+                    /* Temporary while we implement this, since having a bad implementation is
+                     * gonna do more harm than good. */
+                    throw new UnsupportedOperationException("Cannot translate multivalued fields yet");
                 }
             }
         }
