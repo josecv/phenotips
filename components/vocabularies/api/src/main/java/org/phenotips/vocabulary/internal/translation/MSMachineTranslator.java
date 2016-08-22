@@ -171,30 +171,17 @@ public class MSMachineTranslator extends AbstractMachineTranslator
         if (!enabled) {
             return null;
         }
-        if (hasExpired()) {
-            try {
-                getAccessToken();
-            } catch (IOException e) {
-                logger.error("Azure token failed with " + e.getMessage());
-                enabled = false;
-                return null;
-            }
-        }
-        URI uri;
         try {
+            if (hasExpired()) {
+                getAccessToken();
+            }
             URIBuilder builder = new URIBuilder(TRANSLATE_ENDPOINT);
             builder.addParameter("appId", "");
             builder.addParameter("text", input);
             builder.addParameter("from", "en");
             builder.addParameter("to", getLanguage());
             builder.addParameter("contentType", "text/plain");
-            uri = builder.build();
-        } catch (URISyntaxException e) {
-            logger.error("URI Syntax Exception " + e.getMessage());
-            enabled = false;
-            return null;
-        }
-        try {
+            URI uri = builder.build();
             String result = Request.Get(uri).
                 addHeader("Authorization", "Bearer " + token).
                 execute().returnContent().asString();
@@ -206,8 +193,13 @@ public class MSMachineTranslator extends AbstractMachineTranslator
                 result = m.group(1).trim();
             }
             return result;
+        } catch (URISyntaxException e) {
+            logger.error("URI Syntax Exception " + e.getMessage());
+            enabled = false;
+            return null;
         } catch (IOException e) {
             logger.error("Error from translate API " + e.getMessage());
+            enabled = false;
             return null;
         }
     }
