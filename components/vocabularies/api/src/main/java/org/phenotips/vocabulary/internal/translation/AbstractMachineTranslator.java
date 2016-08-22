@@ -220,8 +220,10 @@ public abstract class AbstractMachineTranslator implements MachineTranslator, In
                     String string = (String) o;
                     count += string.length();
                     String result = doTranslate(string);
-                    term.set(translatedField, result);
-                    xliff.setString(term.getId(), field, string, result);
+                    if (result != null) {
+                        term.set(translatedField, result);
+                        xliff.setString(term.getId(), field, string, result);
+                    }
                 }
             } else if (o instanceof Iterable) {
                 Iterable<Object> objects = (Iterable) o;
@@ -229,18 +231,7 @@ public abstract class AbstractMachineTranslator implements MachineTranslator, In
                 if (there != null) {
                     term.set(translatedField, there);
                 } else {
-                    for (Object inner : objects) {
-                        if (inner instanceof String) {
-                            String string = (String) inner;
-                            count += string.length();
-                            String result = doTranslate(string);
-                            term.append(translatedField, result);
-                            xliff.appendString(term.getId(), field, string, result);
-                        } else {
-                            /* Not a string, append it as it is */
-                            term.append(translatedField, inner);
-                        }
-                    }
+                    count += translateIterable(objects, term, field, translatedField, xliff);
                 }
             }
         }
@@ -248,7 +239,39 @@ public abstract class AbstractMachineTranslator implements MachineTranslator, In
     }
 
     /**
+     * Translate an iterable field.
+     *
+     * @param objects the iterable
+     * @param term the vocabulary term
+     * @param field the field we're translating
+     * @param translatedField the translated name of the field
+     * @param xliff the xliff file to store translations in.
+     */
+    private long translateIterable(Iterable<Object> objects, VocabularyInputTerm term,
+            String field, String translatedField, XLiffFile xliff)
+    {
+        long count = 0;
+        for (Object inner : objects) {
+            if (inner instanceof String) {
+                String string = (String) inner;
+                count += string.length();
+                String result = doTranslate(string);
+                if (result != null) {
+                    term.append(translatedField, result);
+                    xliff.appendString(term.getId(), field, string, result);
+                }
+            } else {
+                /* Not a string, append it as it is */
+                term.append(translatedField, inner);
+            }
+        }
+        return count;
+    }
+
+    /**
      * Actually run the input given through a machine translation.
+     * It's possible to return null here in which case no translation will be saved. This allows
+     * for graceful failing of the translator.
      *
      * @param input the input
      * @return the translated string
@@ -270,5 +293,15 @@ public abstract class AbstractMachineTranslator implements MachineTranslator, In
                         vocabulary));
         }
         return xliff;
+    }
+
+    /**
+     * Get the language we're translating to.
+     *
+     * @return the target language.
+     */
+    protected String getLanguage()
+    {
+        return lang;
     }
 }

@@ -337,6 +337,20 @@ public class AbstractMachineTranslatorTest
                 argThat(containsInAnyOrder(translatedSynonyms.toArray())));
     }
 
+    @Test
+    public void testCount()
+    {
+        fields.add("synonym");
+        fields.add("def");
+        when(term2.get("def")).thenReturn("Definitions!");
+        when(term2.getDescription()).thenReturn("Definitions!");
+        when(term2.get("synonym")).thenReturn(synonyms);
+        long count = translator.getMissingCharacters(VOC_NAME, term2, fields);
+        assertEquals(term2.getName().length() + term2.getDescription().length() + synonymsLength,
+                count);
+        verify(term2, never()).set(any(String.class), any(Object.class));
+    }
+
     /**
      * Provides a dummy implementation of machine translator methods.
      * Translates terms into Spanish following the cartoonish principle of prepending
